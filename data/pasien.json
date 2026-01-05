@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "nama": "",
+    "umur": "",
+    "spo2": 0,
+    "denyut": 0,
+    "tekanan": 0,
+    "waktuMenunggu": 1,
+    "notif": false,
+    "triase": "merah"
+  }
+]

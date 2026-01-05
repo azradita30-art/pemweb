@@ -156,7 +156,7 @@ setInterval(async () => {
     // Jika file belum ada atau terjadi error baca/tulis, laporkan
     console.error('Interval error (decrement/writing):', err);
   }
-}, 1000);
+}, 60000);
 
 // ---------- Socket.IO ----------
 io.on('connection', (socket) => {
