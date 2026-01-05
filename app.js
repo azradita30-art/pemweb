@@ -6,13 +6,12 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 
-// Konfigurasi Socket.io khusus Vercel
+// Inisialisasi Socket.io dengan pengaturan khusus serverless
 const io = new Server(server, {
   cors: { origin: "*" },
-  transports: ['polling'] // Serverless Vercel lebih stabil dengan polling
+  transports: ['polling'] 
 });
 
-// Database Sementara (Data akan reset jika server idle/restart)
 let dataPasien = [];
 let dataRiwayat = [];
 
@@ -27,6 +26,11 @@ app.get('/', (req, res) => {
 
 app.get('/riwayat', (req, res) => {
   res.render('riwayat', { data_riwayat: dataRiwayat });
+});
+
+// Route tambahan untuk tes apakah server jalan
+app.get('/debug', (req, res) => {
+  res.json({ status: "online", pasien: dataPasien.length });
 });
 
 // ---------- Logic Triase ----------
@@ -46,13 +50,11 @@ function klasifikasiTriase(data) {
 
 // ---------- Socket.IO ----------
 io.on('connection', (socket) => {
-  // Kirim data awal saat user connect
   socket.emit('dataRealtime', dataPasien);
 
   socket.on('pasienBaru', (data) => {
     const hasil = klasifikasiTriase(data);
     dataPasien.push(hasil);
-    // Urutkan (Merah dulu)
     const prioritas = { merah: 1, kuning: 2, hijau: 3 };
     dataPasien.sort((a, b) => prioritas[a.triase] - prioritas[b.triase]);
     io.emit('dataRealtime', dataPasien);
@@ -68,18 +70,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Timer Pengurang Waktu (Berjalan selama ada user aktif)
-setInterval(() => {
-  if (dataPasien.length > 0) {
-    dataPasien = dataPasien.map(p => ({
-      ...p,
-      waktuMenunggu: Math.max(0, p.waktuMenunggu - 1)
-    }));
-    io.emit('dataRealtime', dataPasien);
-  }
-}, 60000);
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
+// Export server, bukan app. 
+// Vercel akan mengenali HTTP server yang membungkus Express + Socket.io
 module.exports = server;
