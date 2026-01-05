@@ -1,6 +1,18 @@
 // Inisialisasi Socket.IO dengan mode polling agar stabil di Vercel
+// public/js/script.js
 const socket = io({
-    transports: ['polling']
+    transports: ['polling'],
+    upgrade: false,
+    secure: true // Memaksa koneksi aman/HTTPS
+});
+
+// Tambahkan log ini untuk mengecek di console browser
+socket.on('connect', () => {
+    console.log('Terhubung ke Server melalui Socket.id:', socket.id);
+});
+
+socket.on('connect_error', (error) => {
+    console.error('Gagal konek:', error);
 });
 
 // 1. Menangani Form Input Pasien Baru
