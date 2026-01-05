@@ -3,16 +3,23 @@ const express = require('express');
 const path = require('path');
 const http = require('http');
 const { Server } = require('socket.io');
-const fs = require('fs/promises');
+// const fs = require('fs/promises'); // FS dimatikan untuk Vercel (Serverless tidak bisa tulis file)
 const { log } = require('console');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: "*", // Mengizinkan koneksi dari mana saja
+    methods: ["GET", "POST"]
+  }
+});
 
-// Paths
-const filePath = path.join(__dirname, 'data', 'pasien.json');
-const filePathRiwayat = path.join(__dirname, 'data', 'riwayat.json');
+// ---------- IN-MEMORY DATABASE (Pengganti File JSON) ----------
+// Karena Vercel tidak bisa tulis file (fs.writeFile), kita simpan data di variabel.
+// PERINGATAN: Data akan hilang jika server restart/redeploy.
+let DB_PASIEN = []; 
+let DB_RIWAYAT = [];
 
 // Express setup
 app.set('view engine', 'ejs');
@@ -26,8 +33,8 @@ app.get('/', (req, res) => {
 
 app.get('/riwayat', async (req, res) => {
   try {
-    const raw = await fs.readFile(filePathRiwayat, 'utf8');
-    const dataRiwayat = JSON.parse(raw);
+    // Diganti: ambil langsung dari variabel
+    const dataRiwayat = DB_RIWAYAT;
     console.log('Data riwayat di app.js');
     console.log(dataRiwayat);
     res.render('riwayat', { data_riwayat: dataRiwayat });
@@ -44,7 +51,7 @@ function klasifikasiTriase(data) {
 
   const spo2Num = Number(data.spo2);
   const nadiNum = Number(data.denyut);
-  const sistolik = Number(data.tekanan); // mengasumsikan hanya angka
+  const sistolik = Number(data.tekanan);
 
   let triase;
   let waktuMenunggu;
@@ -83,40 +90,24 @@ function urutkanTriase(data) {
   const prioritas = { merah: 1, kuning: 2, hijau: 3 };
 
   return data.sort((a, b) => {
-    // Urutkan berdasarkan triase
     const p = prioritas[a.triase] - prioritas[b.triase];
     if (p !== 0) return p;
-
-    // Jika triase sama → urutkan berdasarkan waktuMenunggu (lebih kecil = prioritas)
     return a.waktuMenunggu - b.waktuMenunggu;
   });
 }
 
+// Fungsi ini sekarang mencari di variabel array, bukan file
 async function cariPasien(nama) {
   console.log('Ini pencarian Pasien');
-  try {
-    const file = await fs.readFile(filePath, 'utf8');
-    const data = JSON.parse(file);
-    return data.find((p) => p.nama === nama);
-  } catch (err) {
-    console.error('Gagal mencari pasien:', err);
-    return undefined;
-  }
+  return DB_PASIEN.find((p) => p.nama === nama);
 }
 
+// Fungsi ini menghapus dari variabel array
 async function deletePasien(nama) {
   try {
-    const raw = await fs.readFile(filePath, 'utf8');
-    let data = JSON.parse(raw);
-
     console.log('Data pasien dalam delete');
-    console.log(data);
-
-    // Filter: buang yang punya nama tertentu
-    data = data.filter((p) => p.nama !== nama);
-
-    // Tulis ulang
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    // Filter array
+    DB_PASIEN = DB_PASIEN.filter((p) => p.nama !== nama);
     console.log(`Pasien ${nama} berhasil dihapus.`);
   } catch (err) {
     console.error('Gagal menghapus pasien:', err);
@@ -124,14 +115,13 @@ async function deletePasien(nama) {
 }
 
 // ---------- Background Interval: Decrement waktuMenunggu & notif ----------
-setInterval(async () => {
+// Catatan Vercel: Interval ini mungkin pause jika tidak ada request masuk.
+setInterval(() => {
   try {
-    let raw = await fs.readFile(filePath, 'utf8');
+    if (DB_PASIEN.length === 0) return;
 
-    if (!raw) return;
-
-    // Kurangi waktuMenunggu tiap pasien, lalu urutkan
-    let dataPasien = JSON.parse(raw).map((obj) => ({
+    // Kurangi waktuMenunggu
+    let dataPasien = DB_PASIEN.map((obj) => ({
       ...obj,
       waktuMenunggu: obj.waktuMenunggu - 1,
     }));
@@ -139,24 +129,23 @@ setInterval(async () => {
     dataPasien = urutkanTriase(dataPasien);
 
     // Cek notifikasi & batas
-    const batas = 0; // batas waktu menunggu dalam menit
+    const batas = 0; 
     dataPasien.forEach((pasien) => {
       if (pasien.waktuMenunggu <= batas && !pasien.notif) {
         io.emit('notif', pasien);
-        pasien.notif = true; // set agar tidak mengirim ulang
+        pasien.notif = true; 
       } else if (pasien.waktuMenunggu < 0) {
         pasien.waktuMenunggu = 0;
       }
     });
 
-    // Simpan perubahan
-    await fs.writeFile(filePath, JSON.stringify(dataPasien, null, 2));
-    console.log('Data pasien berhasil disimpan!');
+    // Simpan ke Variabel Global
+    DB_PASIEN = dataPasien;
+    // console.log('Data pasien berhasil diupdate di memori'); 
   } catch (err) {
-    // Jika file belum ada atau terjadi error baca/tulis, laporkan
-    console.error('Interval error (decrement/writing):', err);
+    console.error('Interval error:', err);
   }
-}, 60000);
+}, 60000); // 1 menit
 
 // ---------- Socket.IO ----------
 io.on('connection', (socket) => {
@@ -167,49 +156,40 @@ io.on('connection', (socket) => {
   });
 
   // Kirim data realtime tiap detik ke client yang terhubung
-  setInterval(async () => {
+  // Kita simpan ID interval agar bisa dibersihkan saat disconnect (Best Practice)
+  const realtimeInterval = setInterval(() => {
     try {
-      const raw = await fs.readFile(filePath, 'utf8');
-      const dataPasien = JSON.parse(raw);
-      socket.emit('dataRealtime', dataPasien);
+      socket.emit('dataRealtime', DB_PASIEN);
     } catch (err) {
       console.error('Gagal mengirim dataRealtime:', err);
-      socket.emit('dataRealtime', []); // fallback agar client tetap menerima sesuatu
+      socket.emit('dataRealtime', []); 
     }
   }, 1000);
 
+  // Bersihkan interval jika client putus agar server tidak berat
+  socket.on('disconnect', () => {
+    clearInterval(realtimeInterval);
+  });
+
   // Event: pasien baru masuk
-  socket.on('pasienBaru', async (data) => {
+  socket.on('pasienBaru', (data) => {
     try {
-      // Baca file (asumsi file sudah ada dan berisi array)
-      const raw = await fs.readFile(filePath, 'utf8');
-      const pasienList = JSON.parse(raw);
-
       const dataClassified = klasifikasiTriase(data);
-      pasienList.push(dataClassified);
-
-      await fs.writeFile(filePath, JSON.stringify(pasienList, null, 2));
+      DB_PASIEN.push(dataClassified);
+      console.log('Pasien baru ditambahkan ke Memori');
     } catch (err) {
       console.error('Gagal menambahkan pasien baru:', err);
     }
   });
 
-  // Event: accPasien (pindahkan ke riwayat dan hapus dari pasien.json)
+  // Event: accPasien
   socket.on('accPasien', async (data) => {
     try {
-      // Baca riwayat
-      const rawRiwayat = await fs.readFile(filePathRiwayat, 'utf8');
-      const pasienRiwayatList = JSON.parse(rawRiwayat);
-
-      // Cari pasien dari pasien.json
       const pasienDipilih = await cariPasien(data.nama);
-
-      // Hapus pasien dari pasien.json
-      await deletePasien(data.nama);
-
-      // Tambah ke riwayat
-      pasienRiwayatList.push(pasienDipilih);
-      await fs.writeFile(filePathRiwayat, JSON.stringify(pasienRiwayatList, null, 2));
+      if (pasienDipilih) {
+        await deletePasien(data.nama);
+        DB_RIWAYAT.push(pasienDipilih);
+      }
     } catch (err) {
       console.error('Gagal memproses accPasien:', err);
     }
@@ -217,7 +197,11 @@ io.on('connection', (socket) => {
 });
 
 // ---------- Start Server ----------
-const PORT = 3000;
+// Vercel menyuntikkan port lewat process.env.PORT
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   log(`Server berjalan di port ${PORT}`);
 });
+
+// Export app diperlukan oleh Vercel dalam beberapa kasus setup
+module.exports = app;
