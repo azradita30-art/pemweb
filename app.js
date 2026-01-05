@@ -8,11 +8,14 @@ const { log } = require('console');
 
 const app = express();
 const server = http.createServer(app);
+const socket = io();
 const io = new Server(server, {
   cors: {
-    origin: "*", // Mengizinkan koneksi dari mana saja
+    origin: "*",
     methods: ["GET", "POST"]
-  }
+  },
+  transports: ['polling'], // <--- WAJIB UNTUK VERCEL
+  allowEIO3: true          // Kompatibilitas tambahan
 });
 
 // ---------- IN-MEMORY DATABASE (Pengganti File JSON) ----------
