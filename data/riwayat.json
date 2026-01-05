@@ -1,0 +1,32 @@
+[
+  {
+    "nama": "Rafi",
+    "umur": "21",
+    "spo2": 100,
+    "denyut": 90,
+    "tekanan": 120,
+    "waktuMenunggu": 0,
+    "notif": true,
+    "triase": "hijau"
+  },
+  {
+    "nama": "Rafi",
+    "umur": "21",
+    "spo2": 100,
+    "denyut": 120,
+    "tekanan": 100,
+    "waktuMenunggu": 0,
+    "notif": true,
+    "triase": "kuning"
+  },
+  {
+    "nama": "sad",
+    "umur": "100",
+    "spo2": 120,
+    "denyut": 45,
+    "tekanan": 50,
+    "waktuMenunggu": 4,
+    "notif": false,
+    "triase": "merah"
+  }
+]

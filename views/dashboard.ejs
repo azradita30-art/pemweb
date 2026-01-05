@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Input Data Pasien</title>
+    <link href="./css/dashboard.css" rel="stylesheet"/>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+  </head>
+  <body>
+    <!-- NAVBAR -->
+    <nav class="navbar bg-body-tertiary fixed-top shadow-dark mb-5">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#">
+          <i class="bi bi-patch-plus logo"></i>SIGAP
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasNavbar" aria-controls="offcanvasNavbar" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasNavbar" aria-labelledby="offcanvasNavbarLabel">
+          <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="offcanvasNavbarLabel">Menu</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+          </div>
+          <div class="offcanvas-body">
+            <ul class="navbar-nav justify-content-end flex-grow-1 pe-3">
+              <li class="nav-item">
+                <a class="nav-link active" aria-current="page" href="#">Beranda</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="/riwayat">Riwayat</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- FORM -->
+    <div class="container container-input">
+      <div class="mb-4 text-center fs-3 fw-bold"><i class="bi bi-people-fill" style="margin-right: 10px;"></i>INPUT DATA PASIEN</div>
+      
+      <form>
+        <div class="row">
+          <!-- Kolom kiri -->
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="nama" class="form-label">Nama Pasien :</label>
+              <input type="text" class="form-control" id="nama">
+            </div>
+            <div class="mb-3">
+              <label for="umur" class="form-label">Umur :</label>
+              <input type="number" class="form-control" id="umur">
+            </div>
+            <div class="mb-3">
+              <label for="spo2" class="form-label">SpO2 :</label>
+              <input type="text" class="form-control" id="spo2">
+            </div>
+          </div>
+
+          <!-- Kolom kanan -->
+          <div class="col-md-6">
+            <div class="mb-3">
+              <label for="denyut" class="form-label">Denyut Jantung :</label>
+              <input type="text" class="form-control" id="denyut">
+            </div>
+            <div class="mb-3">
+              <label for="tekanan" class="form-label">Tekanan Darah :</label>
+              <input type="text" class="form-control" id="tekanan">
+            </div>
+          </div>
+        </div>
+
+        <div class="text-center mt-4 ">
+          <div id="btnTambah" class="btn btn-primary px-4 daftar">Daftarkan</div>
+        </div>
+      </form>
+    </div>
+
+    <!-- PASIEN -->
+    <div class="container container-alert mb-5">
+  <div class="mb-4 fs-3 fw-bold text-center">
+    <i class="bi bi-file-bar-graph-fill" style="margin-right: 10px;"></i>ANTRIAN PASIEN
+  </div>
+
+  <div class="row g-4">
+  
+
+
+
+  <h2 id="output">Menunggu data...</h2>
+
+  </div>
+</div>
+
+
+
+<script src="/socket.io/socket.io.js"></script>
+
+
+  <script>
+    // Fungsi untuk menampilkan card pasien
+  function tampilkanPasien(pasienList) {
+    const container = document.querySelector('.container-alert .row');
+    container.innerHTML = ''; // kosongkan dulu
+
+    pasienList.forEach((p) => {
+      const card = document.createElement('div');
+      waktuMenunggu = p.waktuMenunggu === 0 ? "Terlalu lama menunggu" : `${p.waktuMenunggu} menit`;
+      card.classList.add('col-md-6');
+      card.innerHTML = `
+        <div class="card h-100 position-relative" style="max-width: 540px; margin: auto;">
+          <span class="status-indicator bg-${p.triase}"></span>
+          <span class="timer text-muted">${waktuMenunggu}</span>
+
+          <div class="row g-0">
+            <div class="col-md-4">
+              <img src="./images/matthew-blank-profile-photo-2.jpg" class="img-fluid rounded-start" alt="Foto Pasien">
+            </div>
+            <div class="col-md-8">
+              <div class="card-body">
+                <h5 class="card-title">${p.nama}</h5>
+                <p class="data-pasien"><small>Umur: ${p.umur} Tahun</small></p>
+                <p class="data-pasien"><small>SpO2: ${p.spo2}%</small></p>
+                <p class="data-pasien"><small>Detak Jantung: ${p.denyut} bpm</small></p>
+                <p class="data-pasien"><small>Tekanan Darah: ${p.tekanan} mmHg</small></p>
+                <button class="btn btn-primary px-4 acc-pasien">Acc</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  function showToast(message, triase) {
+    console.log("ini toast");
+    
+    let bgColor = "#333";
+
+    if (triase === "merah") bgColor = "#e74c3c";        // merah
+    else if (triase === "kuning") bgColor = "#f1c40f"; // kuning
+    else if (triase === "hijau") bgColor = "#2ecc71";  // hijau
+
+    const Toast = Swal.mixin({
+        toast: true,
+        position: "top-end",
+        showConfirmButton: false,
+        timer: 4000,
+        timerProgressBar: true,
+        background: bgColor,
+        color: "#fff"
+    });
+
+    Toast.fire({
+        icon: "info",
+        title: `${message} telah menunggu terlalu lama!`
+    });
+}
+    
+  const socket = io();
+
+      socket.on('connect', () => {
+        console.log('Terhubung ke server, id:', socket.id);
+      });
+
+      socket.on('dataRealtime', (data) => {
+        
+        tampilkanPasien(data);
+        document.getElementById("output").textContent = data;
+      });
+
+
+      // Tangkap event 'notif'
+    socket.on("notif", (data) => {
+    console.log("HALO HAO");
+    
+    showToast(data.nama, data.triase);
+    });
+
+
+      document.getElementById("btnTambah").addEventListener("click", (e) => {
+  e.preventDefault(); 
+
+  const pasien = {
+    nama: document.getElementById("nama").value,
+    umur: document.getElementById("umur").value,
+    spo2: document.getElementById("spo2").value,
+    denyut: document.getElementById("denyut").value,
+    tekanan: document.getElementById("tekanan").value,
+    waktuMenunggu: 30
+  };
+
+  socket.emit("pasienBaru", pasien);
+});
+   
+      document.addEventListener("click", (e) => {
+      if (e.target.classList.contains("acc-pasien")) {
+      e.preventDefault();
+    
+      const nama = e.target.closest(".card").querySelector(".card-title").textContent;
+
+    console.log("Tombol ACC ditekan:", nama);
+
+    socket.emit("accPasien", { nama });
+  }
+});
+
+
+   
+   </script>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+  </body>
+</html>
